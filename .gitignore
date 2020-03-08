@@ -1,0 +1,7 @@
+*-backup.*
+*.tfstate*
+dist/*.ovpn
+dist/id_rsa*
+dist/gitconfig
+dist/*.user
+.terraform
