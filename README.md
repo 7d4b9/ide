@@ -29,7 +29,7 @@ this will automatically satisfy the [Makefile](Makefile#L4) default `ADDR = ide`
 ## Update remote environment
 
 ```sh
-make prepare install start-vpn push-git-config push-ssh-cred
+make prepare install push-vpn-conf start-vpn push-git-config push-ssh-cred
 ```
 
 ## Connect to remote environement by using ssh
@@ -45,5 +45,5 @@ Following step requires validates:
 * *SSH* credentials
 
 ```sh
-git clone git@github.dedale.tf1.fr:etf1-platform/generic-adproxy.git
+git clone custom@project.git
 ```

@@ -21,7 +21,7 @@ output "instance_ip_addr" {
 }
 
   resource "aws_key_pair" "deployer" {
-  key_name   = "deployer-key-tf1"
+  key_name   = "deployer-key"
   public_key = file("dist/id_rsa.pub")
   }
 
@@ -55,6 +55,24 @@ ingress {
     ]
 from_port = 22
     to_port = 22
+    protocol = "tcp"
+  }
+ingress {
+    cidr_blocks = [
+      "0.0.0.0/0"
+    ]
+    // go convey
+from_port = 8787
+    to_port = 8787
+    protocol = "tcp"
+  }
+ingress {
+    cidr_blocks = [
+      "0.0.0.0/0"
+    ]
+    // golem
+from_port = 8989
+    to_port = 8989
     protocol = "tcp"
   }
 ingress {
@@ -96,7 +114,7 @@ data "aws_ami" "ubuntu" {
 //servers.tf
 resource "aws_instance" "ide" {
   ami           = data.aws_ami.ubuntu.id
-  instance_type = "t2.large"
+  instance_type = "t2.xlarge"
   key_name = aws_key_pair.deployer.key_name
   security_groups = [aws_security_group.ingress-all-test.id]
   subnet_id = aws_subnet.subnet-uno.id
@@ -105,4 +123,22 @@ resource "aws_instance" "ide" {
 resource "aws_eip" "ide" {
   instance = aws_instance.ide.id
   vpc      = true
+}
+
+resource "aws_volume_attachment" "ide_docker" {
+  device_name = "/dev/sdh"
+  volume_id   = "${aws_ebs_volume.ide_docker.id}"
+  instance_id = "${aws_instance.ide.id}"
+}
+
+resource "aws_ebs_volume" "ide_docker" {
+  availability_zone = "eu-west-1a"
+  size              = 40
+
+  encrypted = true
+  type = "gp2"
+
+  tags = {
+    Name = "tests.ide_docker"
+  }
 }
