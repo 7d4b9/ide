@@ -36,7 +36,7 @@ make create wait-ssh install prepare
 
 ## Start vpn
 
-After `bootsrap` success it is possible to remotely start the distant vpn client service if *VPN* is set.
+After `bootsrap` success it is possible to remotely start the distant vpn client service if [VPN_CONF](Makefile) is set.
 
 ```sh
 make start vpn
@@ -74,8 +74,7 @@ same that:
 make image destroy
 ```
 
-Saves a local `dist/image.tar` based on SAVING (cf [Makefile](Makefile)),
-then destroy the infrastructure.
+Saves a local `dist/image.tar` based on [SAVING](Makefile), then destroy the infrastructure.
 
 ## Clone a project
 
