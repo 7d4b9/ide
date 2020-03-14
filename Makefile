@@ -1,7 +1,12 @@
 SHELL := bash
 
+TERRAFORM_VERSION := 0.12.23
+TERRAFORM := ./terraform
+
 ifndef ADDR
-ADDR := `terraform output instance_ip_addr`
+ifneq (,$(wildcard $(TERRAFORM)))
+ADDR := `$(TERRAFORM) output instance_ip_addr`
+endif
 ifeq (, $(ADDR))
 ADDR := localhost
 endif
@@ -12,18 +17,28 @@ DIST = $(DIST_USER)@$(ADDR)
 
 export
 
+bootstrap: create wait-ssh install prepare
+.PHONY: bootstrap
+
 ssh:
 	@ssh $(DIST)
 .PHONY: ssh
 
-create: terraform
-	@terraform apply
+update: image destroy create
+.PHONY: update
+
+save-quit: image destroy
+.PHONY: save-quit
+
+create: .terraform deployer-pub-key
+	@$(TERRAFORM) apply
+	@echo instance created at $(ADDR)
 .PHONY: create
 
-dist-ssh-key: dist/id_rsa dist/id_rsa.pub
+deployer-pub-key: dist/id_rsa.pub
 
 dist/%: $(HOME)/.ssh/%
-	@echo "Will make use of user SSH $@"
+	@echo "Will make use of user SSH $<"
 	@cp $< $@
 
 dist/gitconfig: $(HOME)/.gitconfig
@@ -43,7 +58,7 @@ SAVING = \
 	/home/$(DIST_USER)/.ssh/id_rsa \
 	/home/$(DIST_USER)/.ssh/id_rsa.pub \
 	/home/$(DIST_USER)/.ssh/known_hosts \
-	/etc/openvpn/client/client.conf \
+	/etc/openvpn/client/$(VPN_CONF).conf \
 	/etc/openvpn/client/vpn.user \
 	/etc/hosts \
 	/etc/fstab \
@@ -60,24 +75,12 @@ ifneq (,$(wildcard $(IMAGE)))
 prepare:
 	@echo "restoring..."
 	@cat $(IMAGE) | ssh $(DIST) sudo tar -xC /
-else
-
-define ENVIRON
-export PATH=$$PATH:/usr/local/go/bin
-export GOSUMDB=off
-endef
-
-export ENVIRON
-
-prepare: push-config
-	@echo "$$ENVIRON" | ssh $(DIST) sudo tee -a /etc/profile
-	@ssh $(DIST) sudo cat /etc/profile
-endif
-
 .PHONY: prepare
-
-update: image destroy create
-.PHONY: update
+else
+prepare: push-config
+	@cat ./dist/prepare.sh | ssh $(DIST) sudo su
+.PHONY: prepare
+endif
 
 $(IMAGE:%image.tar=%_image.tar):
 	@echo Saving image $'$(@:%_image.tar=%image.tar)$'...
@@ -88,67 +91,102 @@ $(IMAGE): $(IMAGE:dist/%=dist/_%)
 	@-for i in `ls $@* 2>/dev/null` ; do mv $$i $${i}_ ; done
 	@mv $< $(IMAGE)
 
-push-vpn-user: dist/vpn.user
+ifneq (,$(VPN_CONF))
+push-vpn-user-cred: dist/vpn.user
 	@scp dist/vpn.user $(DIST):/home/$(DIST_USER)
-.PHONY: push-vpn-user
-
-push-vpn: push-vpn-conf push-vpn-user
+.PHONY: push-vpn-user-cred
+push-vpn-%-file: dist/%.ovpn
+	@scp dist/$*.ovpn $(DIST):/home/$(DIST_USER)/$*.ovpn
+push-vpn-%-conf: push-vpn-%-file push-vpn-user-cred
 	@ssh $(DIST) sudo mv /home/$(DIST_USER)/vpn.user /etc/openvpn/client/
-	@ssh $(DIST) sudo mv /home/$(DIST_USER)/client.ovpn /etc/openvpn/client/client.conf
-.PHONY: push-vpn
-
-push-vpn-conf: dist/client.ovpn
-	@scp dist/client.ovpn $(DIST):/home/$(DIST_USER)/client.ovpn
-.PHONY: push-vpn-conf
+	@ssh $(DIST) sudo mv /home/$(DIST_USER)/$*.ovpn /etc/openvpn/client/$*.conf
+start-vpn-%:
+	@ssh  $(DIST) sudo systemctl start openvpn-client@$(@:start-vpn-%=%)
+.PHONY: start-vpn
+endif
 
 pull-ssh-cred:
+	@echo Pulling ssh credential from $(DIST) to host
 	@scp $(DIST):/home/$(DIST_USER)/.ssh/id_rsa dist/id_rsa
 	@scp $(DIST):/home/$(DIST_USER)/.ssh/id_rsa.pub dist/id_rsa.pub
 .PHONY: pull-ssh-cred
 
-push-ssh-cred:
+push-ssh-cred: dist/id_rsa dist/id_rsa.pub
+	@echo Pushing ssh credential to $(DIST) from host
 	@scp dist/id_rsa $(DIST):/home/$(DIST_USER)/.ssh/id_rsa
 	@scp dist/id_rsa.pub $(DIST):/home/$(DIST_USER)/.ssh/id_rsa.pub
 .PHONY: push-ssh-cred
 
 pull-git-config:
+	@echo Pulling gitconfig from $(DIST) to host
 	@scp $(DIST):/home/$(DIST_USER)/.gitconfig dist/gitconfig
 .PHONY: pull-git-config
 
 push-git-config: dist/gitconfig
+	@echo Pushing initial gitconfig from host to $(DIST)
 	@scp dist/gitconfig $(DIST):/home/$(DIST_USER)/.gitconfig
 .PHONY: push-git-config
 
-push-config: push-git-config push-ssh-cred push-vpn
+push-config: push-git-config push-ssh-cred
+	@echo Updated config
 
 install:
 	@cat ./dist/install.sh | ssh $(DIST) sudo su
 .PHONY: install
 
-start-vpn:
-	@ssh  $(DIST) sudo systemctl $(@:%-vpn=%) openvpn-client@client
-.PHONY: start-vpn
-
-destroy: terraform
-	@terraform destroy
-	@-ssh-keygen -R "$(ADDR)"
+destroy: .terraform
+	@#Prevent aws resource busy at destroy (cannot detach ebs)
+	@-ssh $(DIST) sudo systemctl stop docker
+	@-ssh $(DIST) sudo umount /var/lib/docker
+	@$(TERRAFORM) destroy
+	@-ssh-keygen -R $(ADDR) 2>/dev/null
 .PHONY: destroy
 
-terraform: .terraform dist-ssh-key
-.PHONY: terraform
+wait-ssh:
+	@while ! nc -z $(ADDR) 22 ; do echo "Waiting SSH at $(ADDR)..." ; sleep 1 ; done ;
+	@echo Removing $(ADDR) from SSH known hosts
+	@ssh-keygen -R $(ADDR)
+.PHONY: wait-ssh
 
-.terraform:
-	@terraform init
+.terraform: terraform
+	@$(TERRAFORM) init
 
-setup:
-	@while ! nc -z $(ADDR) 22 ; do echo "Waiting SSH at $(ADDR)..." ; sleep 1 ; done ; \
-	ssh-keygen -R $(ADDR) ; \
-	$(MAKE) install prepare start-vpn ; \
-	echo $@ created instance at $(ADDR) ;
-.PHONY: setup
+ifeq ($(OS),Windows_NT)
+    ifeq ($(PROCESSOR_ARCHITEW6432),AMD64)
+		TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_windows_amd64.zip
+    else
+        ifeq ($(PROCESSOR_ARCHITECTURE),AMD64)
+			TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_windows_amd64.zip
+        endif
+        ifeq ($(PROCESSOR_ARCHITECTURE),x86)
+			TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_windows_386.zip
+        endif
+    endif
+else
+    UNAME_S := $(shell uname -s)
+    ifeq ($(UNAME_S),Linux)
+		UNAME_P := $(shell uname -p)
+    	ifeq ($(UNAME_P),x86_64)
+			TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_linux_amd64.zip
+    	endif
+    	ifneq ($(filter %86,$(UNAME_P)),)
+			TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_linux_386.zip
+    	endif
+    	ifneq ($(filter arm%,$(UNAME_P)),)
+			TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_linux_arm.zip
+    	endif
+    endif
+    ifeq ($(UNAME_S),Darwin)
+		TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_darwin_amd64.zip
+    endif
+endif
 
-bootstrap: create setup
-.PHONY: bootstrap
+TERRAFORM_DL = https://releases.hashicorp.com/terraform/$(TERRAFORM_VERSION)/$(TERRAFORM_ARCHIVE)
+$(TERRAFORM_ARCHIVE):
+	@echo downloading $@
+	@curl -O $(TERRAFORM_DL)
 
-save-quit: image destroy
-.PHONY: save-quit
+terraform: $(TERRAFORM_ARCHIVE)
+	@echo extracting $@...
+	unzip $< && touch  $@
+
