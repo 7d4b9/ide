@@ -101,7 +101,7 @@ push-vpn-%-conf: push-vpn-%-file push-vpn-user-cred
 	@ssh $(DIST) sudo mv /home/$(DIST_USER)/vpn.user /etc/openvpn/client/
 	@ssh $(DIST) sudo mv /home/$(DIST_USER)/$*.ovpn /etc/openvpn/client/$*.conf
 start-vpn-%:
-	@ssh  $(DIST) sudo systemctl start openvpn-client@$(@:start-vpn-%=%)
+	@ssh $(DIST) sudo systemctl start openvpn-client@$(@:start-vpn-%=%)
 .PHONY: start-vpn
 endif
 
@@ -153,31 +153,31 @@ wait-ssh:
 
 ifeq ($(OS),Windows_NT)
     ifeq ($(PROCESSOR_ARCHITEW6432),AMD64)
-		TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_windows_amd64.zip
+        TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_windows_amd64.zip
     else
         ifeq ($(PROCESSOR_ARCHITECTURE),AMD64)
-			TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_windows_amd64.zip
+            TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_windows_amd64.zip
         endif
         ifeq ($(PROCESSOR_ARCHITECTURE),x86)
-			TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_windows_386.zip
+            TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_windows_386.zip
         endif
     endif
 else
     UNAME_S := $(shell uname -s)
     ifeq ($(UNAME_S),Linux)
-		UNAME_P := $(shell uname -p)
-    	ifeq ($(UNAME_P),x86_64)
-			TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_linux_amd64.zip
-    	endif
-    	ifneq ($(filter %86,$(UNAME_P)),)
-			TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_linux_386.zip
-    	endif
-    	ifneq ($(filter arm%,$(UNAME_P)),)
-			TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_linux_arm.zip
-    	endif
+        UNAME_P := $(shell uname -p)
+        ifeq ($(UNAME_P),x86_64)
+            TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_linux_amd64.zip
+        endif
+        ifneq ($(filter %86,$(UNAME_P)),)
+            TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_linux_386.zip
+        endif
+        ifneq ($(filter arm%,$(UNAME_P)),)
+            TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_linux_arm.zip
+        endif
     endif
     ifeq ($(UNAME_S),Darwin)
-		TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_darwin_amd64.zip
+        TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_darwin_amd64.zip
     endif
 endif
 
@@ -189,4 +189,3 @@ $(TERRAFORM_ARCHIVE):
 terraform: $(TERRAFORM_ARCHIVE)
 	@echo extracting $@...
 	unzip $< && touch  $@
-
