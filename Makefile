@@ -4,12 +4,7 @@ TERRAFORM_VERSION := 0.12.23
 TERRAFORM := ./terraform
 
 ifndef ADDR
-ifneq (,$(wildcard $(TERRAFORM)))
-ADDR := `$(TERRAFORM) output instance_ip_addr`
-endif
-ifeq (, $(ADDR))
-ADDR := localhost
-endif
+ADDR = `$(TERRAFORM) output instance_ip_addr`
 endif
 
 DIST_USER := ubuntu
@@ -17,7 +12,7 @@ DIST = $(DIST_USER)@$(ADDR)
 
 export
 
-bootstrap: create wait-ssh install prepare
+bootstrap: release create wait-ssh install prepare
 .PHONY: bootstrap
 
 ssh:
@@ -74,7 +69,9 @@ image: $(IMAGE)
 ifneq (,$(wildcard $(IMAGE)))
 prepare:
 	@echo "restoring..."
+	@-ssh $(DIST) mkfs -t xfs /dev/xvdh
 	@cat $(IMAGE) | ssh $(DIST) sudo tar -xC /
+	@-ssh $(DIST) sudo reboot
 .PHONY: prepare
 else
 prepare: push-config
@@ -83,9 +80,9 @@ prepare: push-config
 endif
 
 $(IMAGE:%image.tar=%_image.tar):
-	@echo Saving image $'$(@:%_image.tar=%image.tar)$'...
+	@echo Saving image $(IMAGE)...
 	@ssh $(DIST) tar cvf - $(SAVING) 2>/dev/null | cat > $@
-	@echo Saved image $'$(@:%_image.tar=%image.tar)$'
+	@echo Saved image $(IMAGE)
 
 $(IMAGE): $(IMAGE:dist/%=dist/_%)
 	@-for i in `ls $@* 2>/dev/null` ; do mv $$i $${i}_ ; done
@@ -101,7 +98,7 @@ push-vpn-%-conf: push-vpn-%-file push-vpn-user-cred
 	@ssh $(DIST) sudo mv /home/$(DIST_USER)/vpn.user /etc/openvpn/client/
 	@ssh $(DIST) sudo mv /home/$(DIST_USER)/$*.ovpn /etc/openvpn/client/$*.conf
 start-vpn-%:
-	@ssh $(DIST) sudo systemctl start openvpn-client@$(@:start-vpn-%=%)
+	@ssh $(DIST) sudo systemctl start openvpn-client@$*
 .PHONY: start-vpn
 endif
 
@@ -129,15 +126,19 @@ push-git-config: dist/gitconfig
 
 push-config: push-git-config push-ssh-cred
 	@echo Updated config
+.PHONY: push-config
 
 install:
 	@cat ./dist/install.sh | ssh $(DIST) sudo su
 .PHONY: install
 
-destroy: .terraform
+release:
 	@#Prevent aws resource busy at destroy (cannot detach ebs)
 	@-ssh $(DIST) sudo systemctl stop docker
 	@-ssh $(DIST) sudo umount /var/lib/docker
+.PHONY: release
+
+destroy: release .terraform
 	@$(TERRAFORM) destroy
 	@-ssh-keygen -R $(ADDR) 2>/dev/null
 .PHONY: destroy
@@ -152,40 +153,39 @@ wait-ssh:
 	@$(TERRAFORM) init
 
 ifeq ($(OS),Windows_NT)
-    ifeq ($(PROCESSOR_ARCHITEW6432),AMD64)
-        TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_windows_amd64.zip
-    else
-        ifeq ($(PROCESSOR_ARCHITECTURE),AMD64)
-            TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_windows_amd64.zip
-        endif
-        ifeq ($(PROCESSOR_ARCHITECTURE),x86)
-            TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_windows_386.zip
-        endif
+  ifeq ($(PROCESSOR_ARCHITEW6432),AMD64)
+    TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_windows_amd64.zip
+  else
+    ifeq ($(PROCESSOR_ARCHITECTURE),AMD64)
+      TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_windows_amd64.zip
     endif
+    ifeq ($(PROCESSOR_ARCHITECTURE),x86)
+      TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_windows_386.zip
+    endif
+  endif
 else
-    UNAME_S := $(shell uname -s)
-    ifeq ($(UNAME_S),Linux)
-        UNAME_P := $(shell uname -p)
-        ifeq ($(UNAME_P),x86_64)
-            TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_linux_amd64.zip
-        endif
-        ifneq ($(filter %86,$(UNAME_P)),)
-            TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_linux_386.zip
-        endif
-        ifneq ($(filter arm%,$(UNAME_P)),)
-            TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_linux_arm.zip
-        endif
+  UNAME_S := $(shell uname -s)
+  ifeq ($(UNAME_S),Linux)
+    UNAME_P := $(shell uname -p)
+    ifeq ($(UNAME_P),x86_64)
+      TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_linux_amd64.zip
     endif
-    ifeq ($(UNAME_S),Darwin)
-        TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_darwin_amd64.zip
+    ifneq ($(filter %86,$(UNAME_P)),)
+      TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_linux_386.zip
     endif
+    ifneq ($(filter arm%,$(UNAME_P)),)
+      TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_linux_arm.zip
+    endif
+  endif
+  ifeq ($(UNAME_S),Darwin)
+    TERRAFORM_ARCHIVE = terraform_$(TERRAFORM_VERSION)_darwin_amd64.zip
+  endif
 endif
 
-TERRAFORM_DL = https://releases.hashicorp.com/terraform/$(TERRAFORM_VERSION)/$(TERRAFORM_ARCHIVE)
 $(TERRAFORM_ARCHIVE):
 	@echo downloading $@
-	@curl -O $(TERRAFORM_DL)
+	@curl -O https://releases.hashicorp.com/terraform/$(TERRAFORM_VERSION)/$@
 
 terraform: $(TERRAFORM_ARCHIVE)
 	@echo extracting $@...
-	unzip $< && touch  $@
+	@unzip $< && touch $@

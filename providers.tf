@@ -84,8 +84,6 @@ resource "aws_security_group" "ingress-all-test" {
     protocol  = "tcp"
   }
 
-
-
   // Terraform removes the default rule
   egress {
     from_port   = 0
