@@ -30,11 +30,11 @@ create: .terraform deployer-pub-key
 deployer-pub-key: dist/id_rsa.pub
 
 dist/%: $(HOME)/.ssh/%
-	@echo "Will make use of user SSH $<"
+	@echo Will make use of user SSH $<
 	@cp $< $@
 
 dist/gitconfig: $(HOME)/.gitconfig
-	@echo "Will make use of user gitconfig $<"
+	@echo Will make use of user gitconfig $<
 	cp $< $@
 
 dist/vpn.user:
@@ -65,7 +65,7 @@ image: $(IMAGE)
 
 ifneq (,$(wildcard $(IMAGE)))
 prepare:
-	@echo "restoring..."
+	@echo restoring...
 	@-ssh $(DIST) mkfs -t xfs /dev/xvdh
 	@cat $(IMAGE) | ssh $(DIST) sudo tar -xC /
 	@-ssh $(DIST) sudo reboot
@@ -96,7 +96,6 @@ push-vpn-%-conf: push-vpn-%-file push-vpn-user-cred
 	@ssh $(DIST) sudo mv /home/$(DIST_USER)/$*.ovpn /etc/openvpn/client/$*.conf
 start-vpn-%:
 	@ssh $(DIST) sudo systemctl start openvpn-client@$*
-.PHONY: start-vpn
 endif
 
 pull-ssh-cred:
@@ -141,7 +140,7 @@ destroy: release .terraform
 .PHONY: destroy
 
 wait-ssh:
-	@while ! nc -z $(ADDR) 22 ; do echo "Waiting SSH at $(ADDR)..." ; sleep 1 ; done ;
+	@while ! nc -z $(ADDR) 22 ; do echo Waiting SSH at $(ADDR)... ; sleep 1 ; done ;
 	@echo Removing $(ADDR) from SSH known hosts
 	@ssh-keygen -R $(ADDR)
 .PHONY: wait-ssh
