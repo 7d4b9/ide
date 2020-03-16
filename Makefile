@@ -12,22 +12,19 @@ DIST = $(DIST_USER)@$(ADDR)
 
 export
 
-bootstrap: release create wait-ssh install prepare
+bootstrap: create wait-ssh install prepare
+	@echo instance boostraped at $(ADDR)
 .PHONY: bootstrap
 
 ssh:
 	@ssh $(DIST)
 .PHONY: ssh
 
-update: image destroy create
-.PHONY: update
-
-save-quit: image destroy
-.PHONY: save-quit
+upgrade: image release bootstrap
+.PHONY: upgrade
 
 create: .terraform deployer-pub-key
 	@$(TERRAFORM) apply
-	@echo instance created at $(ADDR)
 .PHONY: create
 
 deployer-pub-key: dist/id_rsa.pub

@@ -53,22 +53,16 @@ make ssh
 Creates an image of the running distant instance, then destroys, recreates and restores the image of the old instance on the new one.
 
 ```sh
-make update
+make upgrade
 ```
 
 same that:
 
 ```sh
-make image destroy create
+make image destroy bootstrap
 ```
 
 ## Save and quit
-
-```sh
-make save-quit
-```
-
-same that:
 
 ```sh
 make image destroy
