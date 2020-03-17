@@ -48,14 +48,7 @@ dist/vpn.user:
 	@read -sp 'vpn-user-password: ' password && echo $$password >> $@
 
 SAVING = \
-	/home/$(DIST_USER)/.bash_history \
-	/home/$(DIST_USER)/.bashrc \
-	/home/$(DIST_USER)/.gitconfig \
-	/home/$(DIST_USER)/workspace \
-	/home/$(DIST_USER)/.profile \
-	/home/$(DIST_USER)/.ssh/id_rsa \
-	/home/$(DIST_USER)/.ssh/id_rsa.pub \
-	/home/$(DIST_USER)/.ssh/known_hosts \
+	/home \
 	/etc/openvpn/client/$(VPN_CONF).conf \
 	/etc/openvpn/client/vpn.user \
 	/etc/hosts \
