@@ -10,23 +10,29 @@ endif
 DIST_USER := ubuntu
 DIST = $(DIST_USER)@$(ADDR)
 
-VPN_CONF := tf1
-
 export
 
-bootstrap: create wait-ssh install prepare
+# use recreate to re-bootstrap (requiring volume release...)
+bootstrap: .bootstrap.done
+.PHONY: bootstrap
+
+.bootstrap.done: create init-ssh install prepare start-vpn-tf1
+	@touch $@
 	@-ssh $(DIST) sudo reboot
 	@echo Reboot system...please wait.
-	@sh -c 'ssh $(DIST) cat || true' 2>&1 >/dev/null
-	@while ! nc -z $(ADDR) 22 ; do sleep 1 ; done
+	@while ! nc -z "$(ADDR)" 22 ; do sleep 1 ; done
 	@echo System is up.
-.PHONY: bootstrap
+
+recreate: release
+	@-rm .bootstrap.done 2> /dev/null
+	@$(MAKE) bootstrap
+.PHONY: recreate
 
 ssh:
 	@ssh $(DIST)
 .PHONY: ssh
 
-upgrade: image release bootstrap
+upgrade: image recreate
 .PHONY: upgrade
 
 create: .terraform deployer-pub-key
@@ -52,6 +58,7 @@ SAVING = \
 	/etc/openvpn/client/$(VPN_CONF).conf \
 	/etc/openvpn/client/vpn.user \
 	/etc/hosts \
+	/etc/default/openvpn \
 	/etc/fstab \
 	/etc/profile
 
@@ -64,9 +71,9 @@ image: $(IMAGE)
 
 ifneq (,$(wildcard $(IMAGE)))
 prepare:
-	@echo restoring filesystem from $(IMAGE)...
-	@cat $(IMAGE) | ssh $(DIST) sudo tar -xvC /
-	@echo filesystem restored from $(IMAGE).
+	@echo Restoring files from $(IMAGE)...
+	@cat $(IMAGE) | ssh $(DIST) sudo tar -xC /
+	@echo Files restored from $(IMAGE).
 .PHONY: prepare
 else
 prepare: push-config
@@ -76,13 +83,12 @@ endif
 
 $(IMAGE:%image.tar=%_image.tar):
 	@echo Saving image $(IMAGE)...
-	@ssh $(DIST) tar cvf - $(SAVING) 2>/dev/null | cat > $@
+	@ssh $(DIST) tar cf - $(SAVING) 2>/dev/null | cat > $@
 	@echo Saved image $(IMAGE)
 
 $(IMAGE): $(IMAGE:dist/%=dist/_%)
 	@-for i in `ls $@* 2>/dev/null` ; do mv $$i $${i}_ ; done
 	@mv $< $(IMAGE)
-
 ifneq (,$(VPN_CONF))
 push-vpn-user-cred: dist/vpn.user
 	@scp dist/vpn.user $(DIST):/home/$(DIST_USER)
@@ -92,8 +98,11 @@ push-vpn-%-file: dist/%.ovpn
 push-vpn-%-conf: push-vpn-%-file push-vpn-user-cred
 	@ssh $(DIST) sudo mv /home/$(DIST_USER)/vpn.user /etc/openvpn/client/
 	@ssh $(DIST) sudo mv /home/$(DIST_USER)/$*.ovpn /etc/openvpn/client/$*.conf
-start-vpn-%:
+start-vpn-%: push-vpn-%-conf
+	@echo Enable VPN for $*
+	@ssh $(DIST) sudo systemctl enable openvpn-client@$*
 	@ssh $(DIST) sudo systemctl start openvpn-client@$*
+	@echo Enabled VPN for $*
 endif
 
 pull-ssh-cred:
@@ -119,11 +128,12 @@ push-git-config: dist/gitconfig
 .PHONY: push-git-config
 
 push-config: push-git-config push-ssh-cred
-	@echo Updated config
+	@echo Pushed SSH configuration
 .PHONY: push-config
 
 install:
 	@cat ./dist/install.sh | ssh $(DIST) sudo su
+	@-ssh $(DIST) sudo mkfs -t xfs /dev/xvdh 2>/dev/null
 .PHONY: install
 
 release:
@@ -137,11 +147,11 @@ destroy: release .terraform
 	@-ssh-keygen -R $(ADDR) 2>/dev/null
 .PHONY: destroy
 
-wait-ssh:
-	@while ! nc -z $(ADDR) 22 ; do echo Waiting SSH at $(ADDR)... ; sleep 1 ; done ;
+init-ssh:
+	@while ! nc -z "$(ADDR)" 22 ; do echo Waiting SSH at $(ADDR)... ; sleep 1 ; done ;
 	@echo Removing $(ADDR) from SSH known hosts
 	@ssh-keygen -R $(ADDR)
-.PHONY: wait-ssh
+.PHONY: init-ssh
 
 .terraform: terraform
 	@$(TERRAFORM) init

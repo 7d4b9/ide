@@ -5,3 +5,5 @@ dist/gitconfig
 dist/*.user
 dist/image.*
 *terraform*
+*.tar
+*.done

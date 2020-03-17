@@ -95,24 +95,25 @@ resource "aws_security_group" "ingress-all-test" {
 
 data "aws_ami" "ubuntu" {
   most_recent = true
-
   filter {
     name   = "name"
     values = ["ubuntu/images/hvm-ssd/ubuntu-*-18.04-*"]
   }
-
   filter {
     name   = "virtualization-type"
     values = ["hvm"]
   }
-
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
   owners = ["099720109477"] # Canonical
 }
 
 //servers.tf
 resource "aws_instance" "ide" {
   ami             = data.aws_ami.ubuntu.id
-  instance_type   = "t2.large"
+  instance_type   = "t2.xlarge"
   key_name        = aws_key_pair.deployer.key_name
   security_groups = [aws_security_group.ingress-all-test.id]
   subnet_id       = aws_subnet.subnet-uno.id
