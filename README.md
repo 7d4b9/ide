@@ -20,26 +20,25 @@ make create
 export ADDR=34.xx.xxx.129
 ```
 
-## Bootstrap
+## Build
 
 Creates an instance, waits ssh to be available, then prepare the instance or restore an image if `dist/image.tar` exists.
+
+### Bootstrap
 
 ```sh
 make bootstrap
 ```
 
-same that
+### Rebuild
+
+After calling `make bootstrap` the very first time, call `make rebuild` to recreate
+the stack from scratch.
+This is required if a current running instance holds a mounted cloud resource to relase the resource,
+thus allowing successful destruction and re-bootstrap.
 
 ```sh
-make create wait-ssh install prepare
-```
-
-## Start vpn
-
-After `bootsrap` success it is possible to remotely start the distant vpn client service if [VPN_CONF](Makefile) is set.
-
-```sh
-make start vpn
+make rebuild
 ```
 
 ## Connect to the distant instance with ssh
