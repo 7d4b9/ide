@@ -10,10 +10,16 @@ endif
 DIST_USER := ubuntu
 DIST = $(DIST_USER)@$(ADDR)
 
+VPN_CONF := tf1
+
 export
 
 bootstrap: create wait-ssh install prepare
-	@echo instance boostraped at $(ADDR)
+	@-ssh $(DIST) sudo reboot
+	@echo Reboot system...please wait.
+	@sh -c 'ssh $(DIST) cat || true' 2>&1 >/dev/null
+	@while ! nc -z $(ADDR) 22 ; do sleep 1 ; done
+	@echo System is up.
 .PHONY: bootstrap
 
 ssh:
@@ -65,10 +71,9 @@ image: $(IMAGE)
 
 ifneq (,$(wildcard $(IMAGE)))
 prepare:
-	@echo restoring...
-	@-ssh $(DIST) mkfs -t xfs /dev/xvdh
-	@cat $(IMAGE) | ssh $(DIST) sudo tar -xC /
-	@-ssh $(DIST) sudo reboot
+	@echo restoring filesystem from $(IMAGE)...
+	@cat $(IMAGE) | ssh $(DIST) sudo tar -xvC /
+	@echo filesystem restored from $(IMAGE).
 .PHONY: prepare
 else
 prepare: push-config

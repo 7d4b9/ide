@@ -17,3 +17,4 @@ apt-get update && apt-get install -y docker-ce docker-ce-cli containerd.io docke
 usermod -aG docker ubuntu
 newgrp docker
 curl -L https://dl.google.com/go/go1.14.linux-amd64.tar.gz | tar -xz -C /usr/local
+mkfs -t xfs /dev/xvdh 2>/dev/null
