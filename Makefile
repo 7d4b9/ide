@@ -16,12 +16,13 @@ export
 bootstrap: .bootstrap.done
 .PHONY: bootstrap
 
-.bootstrap.done: create init-ssh install prepare start-vpn-tf1
-	@touch $@
+.bootstrap.done:
+	@$(MAKE) create init-ssh install prepare
 	@-ssh $(DIST) sudo reboot
 	@echo Reboot system...please wait.
 	@while ! nc -z "$(ADDR)" 22 ; do sleep 1 ; done
 	@echo System is up.
+	@touch $<
 
 recreate: release
 	@-rm .bootstrap.done 2> /dev/null
