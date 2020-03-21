@@ -57,32 +57,6 @@ resource "aws_security_group" "ingress-all-test" {
     to_port   = 22
     protocol  = "tcp"
   }
-  ingress {
-    cidr_blocks = [
-      "0.0.0.0/0"
-    ]
-    // go convey
-    from_port = 8787
-    to_port   = 8787
-    protocol  = "tcp"
-  }
-  ingress {
-    cidr_blocks = [
-      "0.0.0.0/0"
-    ]
-    // golem
-    from_port = 8989
-    to_port   = 8989
-    protocol  = "tcp"
-  }
-  ingress {
-    cidr_blocks = [
-      "0.0.0.0/0"
-    ]
-    from_port = 8080
-    to_port   = 8080
-    protocol  = "tcp"
-  }
 
   // Terraform removes the default rule
   egress {
