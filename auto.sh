@@ -23,4 +23,14 @@ EOF
 	puts "automatic \'make image destroy\' done"
 EOF
     ;;
+  destroy)
+	expect <<EOF
+	set timeout 300
+	spawn make $1
+	expect "Enter a value:"
+	send "yes\r"
+	expect "Destroy complete!"
+	puts "automatic \'make image destroy\' done"
+EOF
+    ;;
 esac

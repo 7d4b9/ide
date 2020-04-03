@@ -22,7 +22,7 @@ bootstrap: .bootstrap.done
 	@echo Reboot system...please wait.
 	@while ! nc -z "$(ADDR)" 22 ; do sleep 1 ; done
 	@echo System is up.
-	@touch $<
+	@touch $@
 
 recreate: release
 	@-rm .bootstrap.done 2> /dev/null
@@ -194,3 +194,9 @@ $(TERRAFORM_ARCHIVE):
 terraform: $(TERRAFORM_ARCHIVE)
 	@echo extracting $@...
 	@unzip $< && touch $@
+
+AUTOMATIC_TARGETS := bootstrap recreate upgrade shutdown destroy
+
+$(AUTOMATIC_TARGETS:%=auto-%):
+	@./auto.sh $(@:auto-%=%)
+.PHONY: $(AUTOMATIC_TARGETS:%=auto-%)
